@@ -222,8 +222,93 @@ to a peer was lost.
 ```
 ## Hooks
 
-*TBD*
+Hooks allow a plugin to define custom behavior for `lightningd`
+without having to modify the c-lightning source code itself. A plugin
+declares that it'd like to consulted on what to do next for certain
+events in the daemon. A hook can then decide how `lightningd` should
+react to the given event.
 
+Hooks and notifications sounds very similar, however there are a few
+key differences:
+
+ - Notifications are asynchronous, i.e., `lightningd` will send the
+   notifications but not wait for the plugin to process them. Hooks on
+   the other hand are synchronous, `lightningd` cannot finish
+   processing the event until the plugin has returned.
+ - Any number of plugins can subscribe to a notification topic,
+   however only one plugin may register for any hook topic at any
+   point in time (we cannot disambiguate between multiple plugins
+   returning contradictory results from a hook callback).
+
+Hooks are considered to be an advanced feature due to the fact that
+`lightningd` relies on the plugin to tell it what to do next. Use them
+carefully, and make sure your plugins always return a valid response
+to any hook invocation.
+
+### Hook Types
+
+#### `peer_connected`
+
+This hook is called whenever a peer has connected and successfully completed
+the cryptographic handshake. The parameters have the following structure if there is a channel with the peer:
+
+```json
+{
+  "peer": {
+	"id": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+	"addr": "34.239.230.56:9735",
+	"globalfeatures": "",
+	"channel": {
+		"state": "CHANNELD_NORMAL",
+		"scratch_txid": "1c864060ed81170189443086ed84c93ba1dae9f29edfa29dc273c7dd6a7b3fff",
+		"short_channel_id": "559533x1657x1",
+		"direction": 1,
+		"channel_id": "c6128136c099c38b7bbc54d91423b4e6fa28d57b29caf78ee76d243da79d4249",
+		"funding_txid": "48429da73d246de78ef7ca297bd528fae6b42314d954bc7b8bc399c0368112c6",
+		"private": false,
+		"funding_allocation_msat": {
+			"03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f": 0,
+			"03b31e5bbf2cdbe115b485a2b480e70a1ef3951a0dc6df4b1232e0e56f3dce18d6": 100000000
+		},
+		"msatoshi_to_us": 100000000,
+		"msatoshi_to_us_min": 100000000,
+		"msatoshi_to_us_max": 100000000,
+		"msatoshi_total": 100000000,
+		"dust_limit_satoshis": 546,
+		"max_htlc_value_in_flight_msat": 18446744073709551615,
+		"their_channel_reserve_satoshis": 1000,
+		"our_channel_reserve_satoshis": 1000,
+		"spendable_msatoshi": 99000000,
+		"htlc_minimum_msat": 0,
+		"their_to_self_delay": 144,
+		"our_to_self_delay": 144,
+		"max_accepted_htlcs": 483,
+		"status": [
+			"CHANNELD_NORMAL:Attempting to reconnect"
+		],
+		"in_payments_offered": 0,
+		"in_msatoshi_offered": 0,
+		"in_payments_fulfilled": 0,
+		"in_msatoshi_fulfilled": 0,
+		"out_payments_offered": 7597,
+		"out_msatoshi_offered": 90783051,
+		"out_payments_fulfilled": 0,
+		"out_msatoshi_fulfilled": 0,
+		"htlcs": []
+	}
+  }
+}
+```
+
+Notice that this format matches the `listpeers` output, with some minor changes:
+
+ - `addr` only show a single address, which is the address that we are
+   connected to ourselves, not the gossiped list of known addresses. In
+   particular this means that the port for incoming connections is an
+   ephemeral port, that may not be available for reconnections.
+ - `channel` only shows at most the single active channel, not all former
+   channels. If there is no active channel the `.peer.channel` entry will be
+   `null`.
 
 [jsonrpc-spec]: https://www.jsonrpc.org/specification
 [jsonrpc-notification-spec]: https://www.jsonrpc.org/specification#notification
